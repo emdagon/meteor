@@ -8,31 +8,41 @@
       options = options || {};
       var width = options.width || 650;
       var height = options.height || 331;
+      var layout = options.layout || 'natural';
 
-      var openCenteredPopup = function(url, width, height) {
-        var screenX = typeof window.screenX !== 'undefined'
-              ? window.screenX : window.screenLeft;
-        var screenY = typeof window.screenY !== 'undefined'
-              ? window.screenY : window.screenTop;
-        var outerWidth = typeof window.outerWidth !== 'undefined'
-              ? window.outerWidth : document.body.clientWidth;
-        var outerHeight = typeof window.outerHeight !== 'undefined'
-              ? window.outerHeight : (document.body.clientHeight - 22);
-
-        // Use `outerWidth - width` and `outerHeight - height` for help in
-        // positioning the popup centered relative to the current window
-        var left = screenX + (outerWidth - width) / 2;
-        var top = screenY + (outerHeight - height) / 2;
-        var features = ('width=' + width + ',height=' + height +
-                        ',left=' + left + ',top=' + top);
-
-        var newwindow = window.open(url, 'Login', features);
+      var openWindow = function(url, name, features) {
+        var newwindow = window.open(url, name, features);
         if (newwindow.focus)
           newwindow.focus();
         return newwindow;
       };
 
-      var popup = openCenteredPopup(url, width, height);
+      var layouts = {
+        centered: function(url, width, height) {
+          var screenX = typeof window.screenX !== 'undefined'
+                ? window.screenX : window.screenLeft;
+          var screenY = typeof window.screenY !== 'undefined'
+                ? window.screenY : window.screenTop;
+          var outerWidth = typeof window.outerWidth !== 'undefined'
+                ? window.outerWidth : document.body.clientWidth;
+          var outerHeight = typeof window.outerHeight !== 'undefined'
+                ? window.outerHeight : (document.body.clientHeight - 22);
+
+          // Use `outerWidth - width` and `outerHeight - height` for help in
+          // positioning the popup centered relative to the current window
+          var left = screenX + (outerWidth - width) / 2;
+          var top = screenY + (outerHeight - height) / 2;
+          var features = ('width=' + width + ',height=' + height +
+                          ',left=' + left + ',top=' + top);
+
+          return openWindow(url, 'Login', features);
+        },
+        natural: function(url) {
+          return openWindow(url, 'Login');
+        }
+      };
+
+      var popup = layouts[layout](url, width, height);
 
       var checkPopupOpen = setInterval(function() {
         if (popup.closed) {
