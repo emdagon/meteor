@@ -45,6 +45,19 @@
       };
     },
 
+    'click #login-buttons-Twitter': function () {
+      try {
+        Meteor.loginWithTwitter();
+      } catch (e) {
+        if (e instanceof Meteor.accounts.ConfigError)
+          alert("Twitter API key not set. Configure app details with "
+                + "Meteor.accounts.weibo.config() and "
+                + "Meteor.accounts.weibo.setSecret()");
+        else
+          throw e;
+      };
+    },
+
     'click #login-buttons-Weibo': function () {
       try {
         Meteor.loginWithWeibo();
@@ -213,6 +226,8 @@
       ret.push({name: 'Facebook'});
     if (Meteor.accounts.google)
       ret.push({name: 'Google'});
+    if (Meteor.accounts.twitter)
+      ret.push({name: 'Twitter'});
     if (Meteor.accounts.weibo)
       ret.push({name: 'Weibo'});
 
