@@ -9,9 +9,18 @@
     //   If unsuccessful (for example, if the user closed the oauth login popup),
     //     returns null
     login: function(options) {
+      console.log('a'. options);
+      var result;
+      try {
       var result = tryAllLoginHandlers(options);
+        
+      } catch(e) {
+        console.log(e);
+      }
+      console.log('b', result);
       if (result !== null)
         this.setUserId(result.id);
+      console.log('c');
       return result;
     },
 
@@ -26,15 +35,18 @@
   // doesn't return `undefined` (NOT null), meaning it handled this
   // call to `login`. Return that return value.
   var tryAllLoginHandlers = function (options) {
+    console.log('options', options);
     var result = undefined;
-
     _.find(Meteor.accounts._loginHandlers, function(handler) {
+      console.log(handler);
 
       var maybeResult = handler(options);
-      if (maybeResult !== undefined) {
+      if (maybeResult) {
         result = maybeResult;
+        console.log(1, result);
         return true;
       } else {
+        console.log(2);
         return false;
       }
     });
@@ -56,7 +68,7 @@
   };
 
   // support reconnecting using a meteor login token
-  Meteor.accounts.registerLoginHandler(function(options) {
+  Meteor.accounts.registerLoginHandler(function reconnectionHandler(options) {
     if (options.resume) {
       var loginToken = Meteor.accounts._loginTokens
             .findOne({_id: options.resume});

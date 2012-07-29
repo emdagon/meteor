@@ -25,7 +25,7 @@
   };
 
   // Listen to calls to `login` with an oauth option set
-  Meteor.accounts.registerLoginHandler(function (options) {
+  Meteor.accounts.registerLoginHandler (function oauth2LoginHandler(options) {
     if (!options.oauth)
       return undefined; // don't handle
 

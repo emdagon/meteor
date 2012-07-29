@@ -142,7 +142,7 @@
   });
 
   // handler to login with password
-  Meteor.accounts.registerLoginHandler(function (options) {
+  Meteor.accounts.registerLoginHandler(function passwordLoginHandler(options) {
     if (!options.srp)
       return undefined; // don't handle
     if (!options.srp.M)
@@ -173,7 +173,7 @@
   //
   // Also, it might be nice if servers could turn this off. Or maybe it
   // should be opt-in, not opt-out? Meteor.accounts.config option?
-  Meteor.accounts.registerLoginHandler(function (options) {
+  Meteor.accounts.registerLoginHandler(function passwordLoginHandler(options) {
     if (!options.password || !options.user)
       return undefined; // don't handle
 
