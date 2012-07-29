@@ -71,6 +71,7 @@ var querystring = __meteor_bootstrap__.require("querystring");
     var serviceName = splitPath[2];
     var service = Meteor.accounts.oauth1._services[serviceName];
 
+    // XXX Use oauth verifier
     var oauth = new OAuth(urls);
 
     if (req.query.callbackUrl) {
