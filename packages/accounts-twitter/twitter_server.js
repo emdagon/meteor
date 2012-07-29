@@ -5,12 +5,7 @@
   };
 
   Meteor.accounts.oauth1.registerService('twitter', function(oauth) {
-    // XXX Decide where this should live
-    // if (query.error) {
-    //   // The user didn't authorize access
-    //   return null;
-    // }
-    // 
+
     // XXX Decide where this should live
     // if (!Meteor.accounts.twitter._appId || !Meteor.accounts.twitter._appUrl)
     //   throw new Meteor.accounts.ConfigError("Need to call Meteor.accounts.twitter.config first");
@@ -21,7 +16,7 @@
 
     return {
       options: {
-        // Fixy!
+        // XXX Fixy!
         email: identity.screen_name + '@twitter.com',
         services: {twitter: {id: identity.id, accessToken: oauth.accessToken}}
       },

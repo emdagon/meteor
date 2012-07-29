@@ -85,6 +85,12 @@ var querystring = __meteor_bootstrap__.require("querystring");
 
     } else {
 
+      // XXX does checking for the verifier really make sense?
+      if (!query.oauth_token || !query.oauth_verifier) {
+        // The user didn't authorize access
+        return null;
+      }
+
       // Get the oauth token for signing requests
       oauth.getAccessToken(req.query.oauth_token);
 
