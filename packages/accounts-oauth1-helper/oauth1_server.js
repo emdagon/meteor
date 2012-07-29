@@ -1,3 +1,176 @@
+var crypto = __meteor_bootstrap__.require("crypto");
+var querystring = __meteor_bootstrap__.require("querystring");
+
+OAuth = function(urls) {
+  this.urls = urls;
+};
+
+OAuth.prototype.getRequestToken = function(callbackUrl, fn) {
+
+  var authHeader = this._buildHeader({
+    oauth_callback: callbackUrl
+  });
+
+  authHeader.oauth_signature = this._getSignature('POST', this.urls.requestToken, authHeader);
+
+  // XXX Move to it's own method we do this twice
+  var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
+    return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
+  }).sort().join(', ');
+  
+  // XXX Modularize this, most of its in two places
+  // XXX Use sync interface
+  Meteor.http.post(this.urls.requestToken, {
+    headers: {
+      // XXX can we remove this line?
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: authString
+    }
+  }, function(err, response) {
+    if (err) {
+      fn(err);
+    } else {
+      var token = querystring.parse(response.content);
+      fn(null, token);
+    }
+  });
+};
+
+OAuth.prototype.getAccessToken = function(oauthToken, fn) {
+  var self = this;
+
+  // XXX too much in common with getRequestToken
+  var authHeader = this._buildHeader({
+    oauth_token: oauthToken
+  });
+  authHeader.oauth_signature = this._getSignature('POST', this.urls.accessToken, authHeader);
+
+  // XXX Move to it's own method we do this twice
+  var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
+    return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
+  }).join(', ');
+
+  // XXX Modularize this, most of its in two places
+  // XXX Use sync interface
+  Meteor.http.post(this.urls.accessToken, {
+    headers: {
+      // XXX can we remove this line?
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: authString
+    }
+  }, function(err, response) {
+    if (err) {
+      fn(err);
+    } else {
+      // XXX Don't call this token
+      self.token = querystring.parse(response.content);
+      fn(null, self.token);
+    }
+  });
+};
+
+OAuth.prototype.call = function(method, url) {
+  var authHeader = {
+    oauth_token: this.token.oauth_token,
+    // Fixy
+    oauth_consumer_key: Meteor.accounts.twitter._appId,
+    oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
+    oauth_signature_method: 'HMAC-SHA1',
+    oauth_timestamp: (new Date().valueOf()/1000).toFixed().toString(),
+    oauth_version: '1.0'
+  };
+
+  // XXX Fixy
+  authHeader.oauth_signature = this._getSignature(method.toUpperCase(), url, authHeader, this.token.oauth_token_secret);
+
+  // XXX Move to it's own method we do this twice
+  var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
+    return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
+  }).sort().join(', ');
+  
+  var result = Meteor.http[method.toLowerCase()](url, {
+    headers: {
+      Authorization: authString
+    }
+  });
+  
+  if (result.error)
+    throw result.error;
+  return result.data;
+};
+
+OAuth.prototype.get = function(url) {
+  return this.call('get', url);
+};
+
+OAuth.prototype._buildHeader = function(headers) {
+  return _.extend({
+    oauth_consumer_key: Meteor.accounts.twitter._appId,
+    oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
+    oauth_signature_method: 'HMAC-SHA1',
+    oauth_timestamp: (new Date().valueOf()/1000).toFixed().toString(),
+    oauth_version: '1.0'
+  }, headers);
+};
+
+OAuth.prototype._getSignature = function(method, url, rawHeaders, oauthSecret) {
+  
+  var headers = this._encodeHeader(rawHeaders);
+
+  var parameters = _.map(headers, function(val, key) {
+    return key + '=' + val;
+  }).sort().join('&');
+
+  var signatureBase = [
+    method,
+    encodeURIComponent(url),
+    encodeURIComponent(parameters)
+  ].join('&');
+
+  var signingKey = encodeURIComponent(Meteor.accounts.twitter._secret) + '&';
+  if (oauthSecret)
+    signingKey += encodeURIComponent(oauthSecret);
+
+  return crypto.createHmac('SHA1', signingKey).update(signatureBase).digest('base64');
+};
+
+OAuth.prototype._encodeHeader = function(header) {
+  return _.reduce(header, function(memo, val, key) {
+    memo[encodeURIComponent(key)] = encodeURIComponent(val);
+    return memo;
+  }, {});
+};
+
+// var getIdentity = function(accessToken) {
+//   var authHeader = {
+//     oauth_token: accessToken.oauth_token,
+//     oauth_consumer_key: Meteor.accounts.twitter._appId,
+//     oauth_signature_method: 'HMAC-SHA1',
+//     oauth_timestamp: (new Date().valueOf()/1000).toFixed().toString(),
+//     oauth_version: '1.0'
+//   };
+//   
+//   var url = "https://api.twitter.com/1/account/verify_credentials.json";
+//   authHeader.oauth_signature = getSignature('GET', url, authHeader, accessToken.oauth_token_secret);
+//   
+//   // XXX Move to it's own method we do this twice
+//   var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
+//     return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
+//   }).sort().join(', ');
+//   
+//   var result = Meteor.http.get(url, {
+//     'Host': 'api.twitter.com',
+//     'Content-Type': 'application/x-www-form-urlencoded',
+//     headers: {
+//       Authorization: authString
+//     }
+//   });
+//   
+//   if (result.error)
+//     throw result.error;
+//   return result.data;
+// };
+
 (function () {
   var connect = __meteor_bootstrap__.require("connect");
 
@@ -15,6 +188,7 @@
   //     - {options: (options), extra: (optional extra)} (same as the
   //       arguments to Meteor.accounts.updateOrCreateUser)
   //     - `null` if the user declined to give permissions
+  // XXX In the context of oauth1 the name handleOauthRequest doesn't make as much sense
   Meteor.accounts.oauth1.registerService = function (name, handleOauthRequest) {
     if (Meteor.accounts.oauth1._services[name])
       throw new Error("Already registered the " + name + " OAuth1 service");
@@ -47,9 +221,12 @@
 
   // connect middleware
   Meteor.accounts.oauth1._handleRequest = function (req, res, next) {
+
     // req.url will be "/_oauth1/<service name>?<action>"
     var barePath = req.url.substring(0, req.url.indexOf('?'));
     var splitPath = barePath.split('/');
+    // XXX lookup provider
+    var urls = Meteor.accounts.twitter._urls;
 
     // Any non-oauth request will continue down the default middlewares
     if (splitPath[1] !== '_oauth1') {
@@ -64,35 +241,99 @@
     var serviceName = splitPath[2];
     var service = Meteor.accounts.oauth1._services[serviceName];
 
-    // Get or create user id
-    var oauthResult = service.handleOauthRequest(req.query);
+    var oauth = new OAuth(urls);
 
-    if (oauthResult) { // could be null if user declined permissions
-      var userId = Meteor.accounts.updateOrCreateUser(oauthResult.options, oauthResult.extra);
-
-      // Generate and store a login token for reconnect
-      // XXX this could go in accounts_server.js instead
-      var loginToken = Meteor.accounts._loginTokens.insert({userId: userId});
-
-      // Store results to subsequent call to `login`
-      Meteor.accounts.oauth1._loginResultForState[req.query.state] =
-        {token: loginToken, id: userId};
-    }
-
-    // We support ?close and ?redirect=URL. Any other query should
-    // just serve a blank page
-    if ('close' in req.query) { // check with 'in' because we don't set a value
-      // Close the popup window
-      res.writeHead(200, {'Content-Type': 'text/html'});
-      var content =
-            '<html><head><script>window.close()</script></head></html>';
-      res.end(content, 'utf-8');
-    } else if (req.query.redirect) {
-      res.writeHead(302, {'Location': req.query.redirect});
-      res.end();
+    if (req.query.callbackUrl) {
+      return oauth.getRequestToken(req.query.callbackUrl, function(err, requestToken) {
+        if (!err) {
+          var redirectUrl = urls.authenticate + '?oauth_token=' + requestToken.oauth_token;
+          res.writeHead(302, {'Location': redirectUrl});
+          res.end();
+        } else {
+          res.writeHead(200, {'Content-Type': 'text/html'});
+          res.end('', 'utf-8');
+        }
+      });
     } else {
-      res.writeHead(200, {'Content-Type': 'text/html'});
-      res.end('', 'utf-8');
+      return oauth.getAccessToken(req.query.oauth_token, function(err, accessToken) {
+        // console.log();
+        // 
+        // // Get or create user id
+        var oauthResult = service.handleOauthRequest(oauth);
+        
+        res.end('friff' + _.keys(accessToken), 'utf-8');
+
+        // if (oauthResult) { // could be null if user declined permissions
+        //   var userId = Meteor.accounts.updateOrCreateUser(oauthResult.options, oauthResult.extra);
+        // 
+        //   // Generate and store a login token for reconnect
+        //   // XXX this could go in accounts_server.js instead
+        //   var loginToken = Meteor.accounts._loginTokens.insert({userId: userId});
+        // 
+        //   // Store results to subsequent call to `login`
+        //   Meteor.accounts.oauth1._loginResultForState[req.query.state] =
+        //     {token: loginToken, id: userId};
+        // }
+        // 
+        // // We support ?close and ?redirect=URL. Any other query should
+        // // just serve a blank page
+        // if ('close' in req.query) { // check with 'in' because we don't set a value
+        //   // Close the popup window
+        //   res.writeHead(200, {'Content-Type': 'text/html'});
+        //   var content =
+        //         '<html><head><script>window.close()</script></head></html>';
+        //   res.end(content, 'utf-8');
+        // } else if (req.query.redirect) {
+        //   res.writeHead(302, {'Location': req.query.redirect});
+        //   res.end();
+        // } else {
+        //   res.writeHead(200, {'Content-Type': 'text/html'});
+        //   res.end('', 'utf-8');
+        // }
+
+        // var identity = getIdentity(accessToken);
+        // 
+        // var oauthResult = {
+        //   options: {
+        //     // XXX fixy
+        //     email: identity.screen_name + '@twitter.com',
+        //     // XXX fixy
+        //     services: {twitter: {id: identity.id, accessToken: accessToken.oauth_token, accessTokenSecret: accessToken.oauth_token_secret}}
+        //   },
+        //   extra: {name: identity.name}
+        // };
+        // 
+        // if (oauthResult) { // could be null if user declined permissions
+        //   var userId = Meteor.accounts.updateOrCreateUser(oauthResult.options, oauthResult.extra);
+        // 
+        //   // Generate and store a login token for reconnect
+        //   // XXX this could go in accounts_server.js instead
+        //   var loginToken = Meteor.accounts._loginTokens.insert({userId: userId});
+        // 
+        //   // Store results to subsequent call to `login`
+        //   console.log('req.query', req.query);
+        //   console.log('req.query.state', req.query.state);
+        //   Meteor.accounts.oauth1._loginResultForState[req.query.state] =
+        //     {token: loginToken, id: userId};
+        // }
+        // 
+        // // We support ?close and ?redirect=URL. Any other query should
+        // // just serve a blank page
+        // if ('close' in req.query) { // check with 'in' because we don't set a value
+        //   // Close the popup window
+        //   res.writeHead(200, {'Content-Type': 'text/html'});
+        //   var content =
+        //         '<html><head><script>window.close()</script></head></html>';
+        //   res.end(content, 'utf-8');
+        // } else if (req.query.redirect) {
+        //   res.writeHead(302, {'Location': req.query.redirect});
+        //   res.end();
+        // } else {
+        //   res.writeHead(200, {'Content-Type': 'text/html'});
+        //   res.end('', 'utf-8');
+        // }
+
+      });
     }
   };
 
