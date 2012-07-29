@@ -22,7 +22,7 @@
     return {
       options: {
         // Fixy!
-        email: identity.email + '@twitter.com',
+        email: identity.screen_name + '@twitter.com',
         services: {twitter: {id: identity.id, accessToken: oauth.token.oauth_token}}
       },
       extra: {name: identity.name}
