@@ -234,7 +234,6 @@ var querystring = __meteor_bootstrap__.require("querystring");
 
   OAuth.prototype._buildHeader = function(headers) {
     return _.extend({
-      // XXX Fixy
       oauth_consumer_key: this.config._appId,
       oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
       oauth_signature_method: 'HMAC-SHA1',
@@ -257,7 +256,6 @@ var querystring = __meteor_bootstrap__.require("querystring");
       encodeURIComponent(parameters)
     ].join('&');
 
-    // XXX Fixy
     var signingKey = encodeURIComponent(this.config._secret) + '&';
     if (oauthSecret)
       signingKey += encodeURIComponent(oauthSecret);
