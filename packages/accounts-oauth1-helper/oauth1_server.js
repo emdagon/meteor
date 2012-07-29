@@ -30,7 +30,7 @@ var querystring = __meteor_bootstrap__.require("querystring");
 
   // Listen to calls to `login` with an oauth option set
   Meteor.accounts.registerLoginHandler(function (options) {
-    if (!options.oauth)
+    if (!options.oauth || options.oauth.version !== 1)
       return undefined; // don't handle
 
     var result = Meteor.accounts.oauth1._loginResultForState[options.oauth.state];
@@ -159,8 +159,9 @@ var querystring = __meteor_bootstrap__.require("querystring");
         Authorization: authString
       }
     }, function(err, response) {
+
       if (err) {
-        fn(err);
+        fn(err, response);
       } else {
         var token = querystring.parse(response.content);
         fn(null, token);
