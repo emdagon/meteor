@@ -1,176 +1,6 @@
 var crypto = __meteor_bootstrap__.require("crypto");
 var querystring = __meteor_bootstrap__.require("querystring");
 
-OAuth = function(urls) {
-  this.urls = urls;
-};
-
-OAuth.prototype.getRequestToken = function(callbackUrl, fn) {
-
-  var authHeader = this._buildHeader({
-    oauth_callback: callbackUrl
-  });
-
-  authHeader.oauth_signature = this._getSignature('POST', this.urls.requestToken, authHeader);
-
-  // XXX Move to it's own method we do this twice
-  var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
-    return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
-  }).sort().join(', ');
-  
-  // XXX Modularize this, most of its in two places
-  // XXX Use sync interface
-  Meteor.http.post(this.urls.requestToken, {
-    headers: {
-      // XXX can we remove this line?
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: authString
-    }
-  }, function(err, response) {
-    if (err) {
-      fn(err);
-    } else {
-      var token = querystring.parse(response.content);
-      fn(null, token);
-    }
-  });
-};
-
-OAuth.prototype.getAccessToken = function(oauthToken, fn) {
-  var self = this;
-
-  // XXX too much in common with getRequestToken
-  var authHeader = this._buildHeader({
-    oauth_token: oauthToken
-  });
-  authHeader.oauth_signature = this._getSignature('POST', this.urls.accessToken, authHeader);
-
-  // XXX Move to it's own method we do this twice
-  var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
-    return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
-  }).join(', ');
-
-  // XXX Modularize this, most of its in two places
-  // XXX Use sync interface
-  Meteor.http.post(this.urls.accessToken, {
-    headers: {
-      // XXX can we remove this line?
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: authString
-    }
-  }, function(err, response) {
-    if (err) {
-      fn(err);
-    } else {
-      // XXX Don't call this token
-      self.token = querystring.parse(response.content);
-      fn(null, self.token);
-    }
-  });
-};
-
-OAuth.prototype.call = function(method, url) {
-  var authHeader = {
-    oauth_token: this.token.oauth_token,
-    // Fixy
-    oauth_consumer_key: Meteor.accounts.twitter._appId,
-    oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
-    oauth_signature_method: 'HMAC-SHA1',
-    oauth_timestamp: (new Date().valueOf()/1000).toFixed().toString(),
-    oauth_version: '1.0'
-  };
-
-  // XXX Fixy
-  authHeader.oauth_signature = this._getSignature(method.toUpperCase(), url, authHeader, this.token.oauth_token_secret);
-
-  // XXX Move to it's own method we do this twice
-  var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
-    return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
-  }).sort().join(', ');
-  
-  var result = Meteor.http[method.toLowerCase()](url, {
-    headers: {
-      Authorization: authString
-    }
-  });
-  
-  if (result.error)
-    throw result.error;
-  return result.data;
-};
-
-OAuth.prototype.get = function(url) {
-  return this.call('get', url);
-};
-
-OAuth.prototype._buildHeader = function(headers) {
-  return _.extend({
-    oauth_consumer_key: Meteor.accounts.twitter._appId,
-    oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
-    oauth_signature_method: 'HMAC-SHA1',
-    oauth_timestamp: (new Date().valueOf()/1000).toFixed().toString(),
-    oauth_version: '1.0'
-  }, headers);
-};
-
-OAuth.prototype._getSignature = function(method, url, rawHeaders, oauthSecret) {
-  
-  var headers = this._encodeHeader(rawHeaders);
-
-  var parameters = _.map(headers, function(val, key) {
-    return key + '=' + val;
-  }).sort().join('&');
-
-  var signatureBase = [
-    method,
-    encodeURIComponent(url),
-    encodeURIComponent(parameters)
-  ].join('&');
-
-  var signingKey = encodeURIComponent(Meteor.accounts.twitter._secret) + '&';
-  if (oauthSecret)
-    signingKey += encodeURIComponent(oauthSecret);
-
-  return crypto.createHmac('SHA1', signingKey).update(signatureBase).digest('base64');
-};
-
-OAuth.prototype._encodeHeader = function(header) {
-  return _.reduce(header, function(memo, val, key) {
-    memo[encodeURIComponent(key)] = encodeURIComponent(val);
-    return memo;
-  }, {});
-};
-
-// var getIdentity = function(accessToken) {
-//   var authHeader = {
-//     oauth_token: accessToken.oauth_token,
-//     oauth_consumer_key: Meteor.accounts.twitter._appId,
-//     oauth_signature_method: 'HMAC-SHA1',
-//     oauth_timestamp: (new Date().valueOf()/1000).toFixed().toString(),
-//     oauth_version: '1.0'
-//   };
-//   
-//   var url = "https://api.twitter.com/1/account/verify_credentials.json";
-//   authHeader.oauth_signature = getSignature('GET', url, authHeader, accessToken.oauth_token_secret);
-//   
-//   // XXX Move to it's own method we do this twice
-//   var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
-//     return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
-//   }).sort().join(', ');
-//   
-//   var result = Meteor.http.get(url, {
-//     'Host': 'api.twitter.com',
-//     'Content-Type': 'application/x-www-form-urlencoded',
-//     headers: {
-//       Authorization: authString
-//     }
-//   });
-//   
-//   if (result.error)
-//     throw result.error;
-//   return result.data;
-// };
-
 (function () {
   var connect = __meteor_bootstrap__.require("connect");
 
@@ -348,5 +178,145 @@ OAuth.prototype._encodeHeader = function(header) {
         Meteor.accounts.oauth1._handleRequest(req, res, next);
       }).run();
     });
+
+  OAuth = function(urls) {
+    this.urls = urls;
+  };
+
+  OAuth.prototype.getRequestToken = function(callbackUrl, fn) {
+
+    var authHeader = this._buildHeader({
+      oauth_callback: callbackUrl
+    });
+
+    authHeader.oauth_signature = this._getSignature('POST', this.urls.requestToken, authHeader);
+
+    // XXX Move to it's own method we do this twice
+    var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
+      return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
+    }).sort().join(', ');
+
+    // XXX Modularize this, most of its in two places
+    // XXX Use sync interface
+    Meteor.http.post(this.urls.requestToken, {
+      headers: {
+        // XXX can we remove this line?
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: authString
+      }
+    }, function(err, response) {
+      if (err) {
+        fn(err);
+      } else {
+        var token = querystring.parse(response.content);
+        fn(null, token);
+      }
+    });
+  };
+
+  OAuth.prototype.getAccessToken = function(oauthToken, fn) {
+    var self = this;
+
+    // XXX too much in common with getRequestToken
+    var authHeader = this._buildHeader({
+      oauth_token: oauthToken
+    });
+    authHeader.oauth_signature = this._getSignature('POST', this.urls.accessToken, authHeader);
+
+    // XXX Move to it's own method we do this twice
+    var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
+      return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
+    }).join(', ');
+
+    // XXX Modularize this, most of its in two places
+    // XXX Use sync interface
+    Meteor.http.post(this.urls.accessToken, {
+      headers: {
+        // XXX can we remove this line?
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: authString
+      }
+    }, function(err, response) {
+      if (err) {
+        fn(err);
+      } else {
+        // XXX Don't call this token
+        self.token = querystring.parse(response.content);
+        fn(null, self.token);
+      }
+    });
+  };
+
+  OAuth.prototype.call = function(method, url) {
+    var authHeader = {
+      oauth_token: this.token.oauth_token,
+      // Fixy
+      oauth_consumer_key: Meteor.accounts.twitter._appId,
+      oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
+      oauth_signature_method: 'HMAC-SHA1',
+      oauth_timestamp: (new Date().valueOf()/1000).toFixed().toString(),
+      oauth_version: '1.0'
+    };
+
+    // XXX Fixy
+    authHeader.oauth_signature = this._getSignature(method.toUpperCase(), url, authHeader, this.token.oauth_token_secret);
+
+    // XXX Move to it's own method we do this twice
+    var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
+      return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
+    }).sort().join(', ');
+
+    var result = Meteor.http[method.toLowerCase()](url, {
+      headers: {
+        Authorization: authString
+      }
+    });
+
+    if (result.error)
+      throw result.error;
+    return result.data;
+  };
+
+  OAuth.prototype.get = function(url) {
+    return this.call('get', url);
+  };
+
+  OAuth.prototype._buildHeader = function(headers) {
+    return _.extend({
+      oauth_consumer_key: Meteor.accounts.twitter._appId,
+      oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
+      oauth_signature_method: 'HMAC-SHA1',
+      oauth_timestamp: (new Date().valueOf()/1000).toFixed().toString(),
+      oauth_version: '1.0'
+    }, headers);
+  };
+
+  OAuth.prototype._getSignature = function(method, url, rawHeaders, oauthSecret) {
+
+    var headers = this._encodeHeader(rawHeaders);
+
+    var parameters = _.map(headers, function(val, key) {
+      return key + '=' + val;
+    }).sort().join('&');
+
+    var signatureBase = [
+      method,
+      encodeURIComponent(url),
+      encodeURIComponent(parameters)
+    ].join('&');
+
+    var signingKey = encodeURIComponent(Meteor.accounts.twitter._secret) + '&';
+    if (oauthSecret)
+      signingKey += encodeURIComponent(oauthSecret);
+
+    return crypto.createHmac('SHA1', signingKey).update(signatureBase).digest('base64');
+  };
+
+  OAuth.prototype._encodeHeader = function(header) {
+    return _.reduce(header, function(memo, val, key) {
+      memo[encodeURIComponent(key)] = encodeURIComponent(val);
+      return memo;
+    }, {});
+  };
 
 })();
