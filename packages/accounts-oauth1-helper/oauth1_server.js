@@ -11,7 +11,7 @@ var querystring = __meteor_bootstrap__.require("querystring");
   // handler should use that information to fetch data about the user
   // logging in.
   //
-  // @param name {String} e.g. "google", "twitter"
+  // @param name {String} e.g. "flickr", "twitter"
   // @param handleOauthRequest {Function(query)}
   //   - query is an object with the parameters passed in the query string
   //   - return value is:
@@ -168,10 +168,10 @@ var querystring = __meteor_bootstrap__.require("querystring");
 
   OAuth.prototype.getAccessToken = function(oauthToken) {
 
-    // XXX too much in common with getRequestToken
     var headers = this._buildHeader({
       oauth_token: oauthToken
     });
+
     headers.oauth_signature = this._getSignature('POST', this.urls.accessToken, headers);
 
     var authString = this._getAuthHeaderString(headers);
@@ -192,17 +192,10 @@ var querystring = __meteor_bootstrap__.require("querystring");
   };
 
   OAuth.prototype.call = function(method, url) {
-    var headers = {
-      oauth_token: this.accessToken,
-      // Fixy
-      oauth_consumer_key: Meteor.accounts.twitter._appId,
-      oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
-      oauth_signature_method: 'HMAC-SHA1',
-      oauth_timestamp: (new Date().valueOf()/1000).toFixed().toString(),
-      oauth_version: '1.0'
-    };
+    var headers = this._buildHeader({
+      oauth_token: this.accessToken
+    });
 
-    // XXX Fixy
     headers.oauth_signature = this._getSignature(method.toUpperCase(), url, headers, this.accessTokenSecret);
 
     var authString = this._getAuthHeaderString(headers);
@@ -225,6 +218,7 @@ var querystring = __meteor_bootstrap__.require("querystring");
 
   OAuth.prototype._buildHeader = function(headers) {
     return _.extend({
+      // XXX Fixy
       oauth_consumer_key: Meteor.accounts.twitter._appId,
       oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
       oauth_signature_method: 'HMAC-SHA1',
@@ -247,6 +241,7 @@ var querystring = __meteor_bootstrap__.require("querystring");
       encodeURIComponent(parameters)
     ].join('&');
 
+    // XXX Fixy
     var signingKey = encodeURIComponent(Meteor.accounts.twitter._secret) + '&';
     if (oauthSecret)
       signingKey += encodeURIComponent(oauthSecret);
