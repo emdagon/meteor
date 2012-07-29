@@ -6,12 +6,6 @@
 
   Meteor.accounts.oauth1.registerService('twitter', function(oauth) {
 
-    // XXX Decide where this should live
-    // if (!Meteor.accounts.twitter._appId || !Meteor.accounts.twitter._appUrl)
-    //   throw new Meteor.accounts.ConfigError("Need to call Meteor.accounts.twitter.config first");
-    // if (!Meteor.accounts.twitter._secret)
-    //   throw new Meteor.accounts.ConfigError("Need to call Meteor.accounts.twitter.setSecret first");
-
     var identity = oauth.get('https://api.twitter.com/1/account/verify_credentials.json');
 
     return {
