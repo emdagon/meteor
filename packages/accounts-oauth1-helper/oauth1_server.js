@@ -86,83 +86,37 @@ var querystring = __meteor_bootstrap__.require("querystring");
       });
     } else {
       return oauth.getAccessToken(req.query.oauth_token, function(err, accessToken) {
-        // console.log();
-        // 
+
         // // Get or create user id
         var oauthResult = service.handleOauthRequest(oauth);
         
-        res.end('friff' + _.keys(accessToken), 'utf-8');
+        if (oauthResult) { // could be null if user declined permissions
+          var userId = Meteor.accounts.updateOrCreateUser(oauthResult.options, oauthResult.extra);
 
-        // if (oauthResult) { // could be null if user declined permissions
-        //   var userId = Meteor.accounts.updateOrCreateUser(oauthResult.options, oauthResult.extra);
-        // 
-        //   // Generate and store a login token for reconnect
-        //   // XXX this could go in accounts_server.js instead
-        //   var loginToken = Meteor.accounts._loginTokens.insert({userId: userId});
-        // 
-        //   // Store results to subsequent call to `login`
-        //   Meteor.accounts.oauth1._loginResultForState[req.query.state] =
-        //     {token: loginToken, id: userId};
-        // }
-        // 
-        // // We support ?close and ?redirect=URL. Any other query should
-        // // just serve a blank page
-        // if ('close' in req.query) { // check with 'in' because we don't set a value
-        //   // Close the popup window
-        //   res.writeHead(200, {'Content-Type': 'text/html'});
-        //   var content =
-        //         '<html><head><script>window.close()</script></head></html>';
-        //   res.end(content, 'utf-8');
-        // } else if (req.query.redirect) {
-        //   res.writeHead(302, {'Location': req.query.redirect});
-        //   res.end();
-        // } else {
-        //   res.writeHead(200, {'Content-Type': 'text/html'});
-        //   res.end('', 'utf-8');
-        // }
+          // Generate and store a login token for reconnect
+          // XXX this could go in accounts_server.js instead
+          var loginToken = Meteor.accounts._loginTokens.insert({userId: userId});
 
-        // var identity = getIdentity(accessToken);
-        // 
-        // var oauthResult = {
-        //   options: {
-        //     // XXX fixy
-        //     email: identity.screen_name + '@twitter.com',
-        //     // XXX fixy
-        //     services: {twitter: {id: identity.id, accessToken: accessToken.oauth_token, accessTokenSecret: accessToken.oauth_token_secret}}
-        //   },
-        //   extra: {name: identity.name}
-        // };
-        // 
-        // if (oauthResult) { // could be null if user declined permissions
-        //   var userId = Meteor.accounts.updateOrCreateUser(oauthResult.options, oauthResult.extra);
-        // 
-        //   // Generate and store a login token for reconnect
-        //   // XXX this could go in accounts_server.js instead
-        //   var loginToken = Meteor.accounts._loginTokens.insert({userId: userId});
-        // 
-        //   // Store results to subsequent call to `login`
-        //   console.log('req.query', req.query);
-        //   console.log('req.query.state', req.query.state);
-        //   Meteor.accounts.oauth1._loginResultForState[req.query.state] =
-        //     {token: loginToken, id: userId};
-        // }
-        // 
-        // // We support ?close and ?redirect=URL. Any other query should
-        // // just serve a blank page
-        // if ('close' in req.query) { // check with 'in' because we don't set a value
-        //   // Close the popup window
-        //   res.writeHead(200, {'Content-Type': 'text/html'});
-        //   var content =
-        //         '<html><head><script>window.close()</script></head></html>';
-        //   res.end(content, 'utf-8');
-        // } else if (req.query.redirect) {
-        //   res.writeHead(302, {'Location': req.query.redirect});
-        //   res.end();
-        // } else {
-        //   res.writeHead(200, {'Content-Type': 'text/html'});
-        //   res.end('', 'utf-8');
-        // }
+          // Store results to subsequent call to `login`
+          Meteor.accounts.oauth1._loginResultForState[req.query.state] =
+            {token: loginToken, id: userId};
+        }
 
+        // We support ?close and ?redirect=URL. Any other query should
+        // just serve a blank page
+        if ('close' in req.query) { // check with 'in' because we don't set a value
+          // Close the popup window
+          res.writeHead(200, {'Content-Type': 'text/html'});
+          var content =
+                '<html><head><script>window.close()</script></head></html>';
+          res.end(content, 'utf-8');
+        } else if (req.query.redirect) {
+          res.writeHead(302, {'Location': req.query.redirect});
+          res.end();
+        } else {
+          res.writeHead(200, {'Content-Type': 'text/html'});
+          res.end('', 'utf-8');
+        }
       });
     }
   };

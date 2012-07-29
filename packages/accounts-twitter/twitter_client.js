@@ -18,7 +18,7 @@
     //       '&display=' + display + '&scope=' + scope + '&state=' + state;
 
     // XXX Figure out how to not hardcode ?close (could also be ?redirect=url)
-    var callbackUrl = Meteor.accounts.twitter._appUrl + '/_oauth1/twitter?close'; //'&state=' + state;
+    var callbackUrl = Meteor.accounts.twitter._appUrl + '/_oauth1/twitter?close&state=' + state;
 
     Meteor.accounts.oauth1.initiateLogin(state, callbackUrl);
   };

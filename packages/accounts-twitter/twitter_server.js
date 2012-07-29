@@ -5,7 +5,6 @@
   };
 
   Meteor.accounts.oauth1.registerService('twitter', function(oauth) {
-    console.log('callback', oauth);
     // XXX Decide where this should live
     // if (query.error) {
     //   // The user didn't authorize access
@@ -18,21 +17,19 @@
     // if (!Meteor.accounts.twitter._secret)
     //   throw new Meteor.accounts.ConfigError("Need to call Meteor.accounts.twitter.setSecret first");
 
-    // var accessToken = getAccessToken(query);
-    // var identity = getIdentity(accessToken);
-
     var identity = oauth.get('https://api.twitter.com/1/account/verify_credentials.json');
 
-    console.log(identity, 55);
     return {
-      // options: {
-      //   email: identity.email,
-      //   services: {twitter: {id: identity.id, accessToken: accessToken}}
-      // },
-      // extra: {name: identity.name}
+      options: {
+        // Fixy!
+        email: identity.email + '@twitter.com',
+        services: {twitter: {id: identity.id, accessToken: oauth.token.oauth_token}}
+      },
+      extra: {name: identity.name}
     };
   });
 
+  // XXX Look for behavior that we need and move it where it belongs
   // var getAccessToken = function (query) {
   //   // Request an access token
   //   var result = Meteor.http.get(
