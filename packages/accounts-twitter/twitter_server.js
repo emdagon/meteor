@@ -10,8 +10,8 @@
 
     return {
       options: {
-        // XXX Fixy!
-        email: identity.screen_name + '@twitter.com',
+        // XXX Figure out what to do here
+        email: identity.screen_name + '@OAUTH1_TWITTER',
         services: {twitter: {id: identity.id, accessToken: oauth.accessToken}}
       },
       extra: {name: identity.name}
