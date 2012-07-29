@@ -52,17 +52,9 @@ var querystring = __meteor_bootstrap__.require("querystring");
   // connect middleware
   Meteor.accounts.oauth1._handleRequest = function (req, res, next) {
 
-    // XXX Fixy!
-    if (!Meteor.accounts.twitter._appId || !Meteor.accounts.twitter._appUrl)
-      throw new Meteor.accounts.ConfigError("Need to call Meteor.accounts.twitter.config first");
-    if (!Meteor.accounts.twitter._secret)
-      throw new Meteor.accounts.ConfigError("Need to call Meteor.accounts.twitter.setSecret first");
-
     // req.url will be "/_oauth1/<service name>?<action>"
     var barePath = req.url.substring(0, req.url.indexOf('?'));
     var splitPath = barePath.split('/');
-    // XXX lookup provider
-    var urls = Meteor.accounts.twitter._urls;
 
     // Any non-oauth request will continue down the default middlewares
     if (splitPath[1] !== '_oauth1') {
@@ -75,24 +67,34 @@ var querystring = __meteor_bootstrap__.require("querystring");
     // immediate.
 
     var serviceName = splitPath[2];
-    var service = Meteor.accounts.oauth1._services[serviceName];
+    
+    // XXX check against a list of installed services too
+    if (!serviceName)
+      throw new Meteor.accounts.ConfigError("Service could not be found");
 
-    // XXX Use oauth verifier
-    var oauth = new OAuth(urls);
+    // Make sure we're configured
+    if (!Meteor.accounts[serviceName]._appId || !Meteor.accounts[serviceName]._appUrl)
+      throw new Meteor.accounts.ConfigError("Need to call Meteor.accounts." + serviceName + ".config first");
+    if (!Meteor.accounts[serviceName]._secret)
+      throw new Meteor.accounts.ConfigError("Need to call Meteor.accounts." + serviceName + ".setSecret first");
+
+    var service = Meteor.accounts.oauth1._services[serviceName];
+    var config = Meteor.accounts[serviceName];
+    var oauth = new OAuth(config);
 
     if (req.query.callbackUrl) {
 
       // Get a request token to start auth process
       oauth.getRequestToken(req.query.callbackUrl);
 
-      var redirectUrl = urls.authenticate + '?oauth_token=' + oauth.requestToken;
+      var redirectUrl = config._urls.authenticate + '?oauth_token=' + oauth.requestToken;
       res.writeHead(302, {'Location': redirectUrl});
       res.end();
 
     } else {
 
       // XXX does checking for the verifier really make sense?
-      if (!query.oauth_token || !query.oauth_verifier) {
+      if (!req.query.oauth_token || !req.query.oauth_verifier) {
         // The user didn't authorize access
         return null;
       }
@@ -145,8 +147,9 @@ var querystring = __meteor_bootstrap__.require("querystring");
       }).run();
     });
 
-  OAuth = function(urls) {
-    this.urls = urls;
+  // XXX Use oauth verifier
+  OAuth = function(config) {
+    this.config = config;
   };
 
   OAuth.prototype._getAuthHeaderString = function(headers) {
@@ -161,12 +164,12 @@ var querystring = __meteor_bootstrap__.require("querystring");
       oauth_callback: callbackUrl
     });
 
-    headers.oauth_signature = this._getSignature('POST', this.urls.requestToken, headers);
+    headers.oauth_signature = this._getSignature('POST', this.config._urls.requestToken, headers);
 
     var authString = this._getAuthHeaderString(headers);
 
     // XXX Modularize this, most of its in two places
-    var response = Meteor.http.post(this.urls.requestToken, {
+    var response = Meteor.http.post(this.config._urls.requestToken, {
       headers: {
         Authorization: authString
       }
@@ -185,12 +188,12 @@ var querystring = __meteor_bootstrap__.require("querystring");
       oauth_token: oauthToken
     });
 
-    headers.oauth_signature = this._getSignature('POST', this.urls.accessToken, headers);
+    headers.oauth_signature = this._getSignature('POST', this.config._urls.accessToken, headers);
 
     var authString = this._getAuthHeaderString(headers);
 
     // XXX Modularize this, most of its in two places
-    var response = Meteor.http.post(this.urls.accessToken, {
+    var response = Meteor.http.post(this.config._urls.accessToken, {
       headers: {
         Authorization: authString
       }
@@ -232,7 +235,7 @@ var querystring = __meteor_bootstrap__.require("querystring");
   OAuth.prototype._buildHeader = function(headers) {
     return _.extend({
       // XXX Fixy
-      oauth_consumer_key: Meteor.accounts.twitter._appId,
+      oauth_consumer_key: this.config._appId,
       oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
       oauth_signature_method: 'HMAC-SHA1',
       oauth_timestamp: (new Date().valueOf()/1000).toFixed().toString(),
@@ -255,7 +258,7 @@ var querystring = __meteor_bootstrap__.require("querystring");
     ].join('&');
 
     // XXX Fixy
-    var signingKey = encodeURIComponent(Meteor.accounts.twitter._secret) + '&';
+    var signingKey = encodeURIComponent(this.config._secret) + '&';
     if (oauthSecret)
       signingKey += encodeURIComponent(oauthSecret);
 

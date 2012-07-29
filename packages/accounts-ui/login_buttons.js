@@ -64,8 +64,8 @@
       } catch (e) {
         if (e instanceof Meteor.accounts.ConfigError)
           alert("Twitter API key not set. Configure app details with "
-                + "Meteor.accounts.weibo.config() and "
-                + "Meteor.accounts.weibo.setSecret()");
+                + "Meteor.accounts.twitter.config() and "
+                + "Meteor.accounts.twitter.setSecret()");
         else
           throw e;
       };
