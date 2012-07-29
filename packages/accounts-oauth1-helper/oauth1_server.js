@@ -136,18 +136,21 @@ var querystring = __meteor_bootstrap__.require("querystring");
     this.urls = urls;
   };
 
+  OAuth.prototype._getAuthHeaderString = function(headers) {
+    return 'OAuth ' +  _.map(headers, function(val, key) {
+      return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
+    }).sort().join(', ');
+  };
+
   OAuth.prototype.getRequestToken = function(callbackUrl) {
 
-    var authHeader = this._buildHeader({
+    var headers = this._buildHeader({
       oauth_callback: callbackUrl
     });
 
-    authHeader.oauth_signature = this._getSignature('POST', this.urls.requestToken, authHeader);
+    headers.oauth_signature = this._getSignature('POST', this.urls.requestToken, headers);
 
-    // XXX Move to it's own method we do this twice
-    var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
-      return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
-    }).sort().join(', ');
+    var authString = this._getAuthHeaderString(headers);
 
     // XXX Modularize this, most of its in two places
     var response = Meteor.http.post(this.urls.requestToken, {
@@ -166,15 +169,12 @@ var querystring = __meteor_bootstrap__.require("querystring");
   OAuth.prototype.getAccessToken = function(oauthToken) {
 
     // XXX too much in common with getRequestToken
-    var authHeader = this._buildHeader({
+    var headers = this._buildHeader({
       oauth_token: oauthToken
     });
-    authHeader.oauth_signature = this._getSignature('POST', this.urls.accessToken, authHeader);
+    headers.oauth_signature = this._getSignature('POST', this.urls.accessToken, headers);
 
-    // XXX Move to it's own method we do this twice
-    var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
-      return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
-    }).join(', ');
+    var authString = this._getAuthHeaderString(headers);
 
     // XXX Modularize this, most of its in two places
     var response = Meteor.http.post(this.urls.accessToken, {
@@ -186,13 +186,14 @@ var querystring = __meteor_bootstrap__.require("querystring");
     if (response.error)
       throw response.error;
 
-    // XXX Don't call this token
-    this.token = querystring.parse(response.content);
+    var tokens = querystring.parse(response.content);
+    this.accessToken = tokens.oauth_token;
+    this.accessTokenSecret = tokens.oauth_token_secret;
   };
 
   OAuth.prototype.call = function(method, url) {
-    var authHeader = {
-      oauth_token: this.token.oauth_token,
+    var headers = {
+      oauth_token: this.accessToken,
       // Fixy
       oauth_consumer_key: Meteor.accounts.twitter._appId,
       oauth_nonce: Meteor.uuid().replace(/\W/g, ''),
@@ -202,12 +203,9 @@ var querystring = __meteor_bootstrap__.require("querystring");
     };
 
     // XXX Fixy
-    authHeader.oauth_signature = this._getSignature(method.toUpperCase(), url, authHeader, this.token.oauth_token_secret);
+    headers.oauth_signature = this._getSignature(method.toUpperCase(), url, headers, this.accessTokenSecret);
 
-    // XXX Move to it's own method we do this twice
-    var authString = 'OAuth ' +  _.map(authHeader, function(val, key) {
-      return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
-    }).sort().join(', ');
+    var authString = this._getAuthHeaderString(headers);
 
     var response = Meteor.http[method.toLowerCase()](url, {
       headers: {
