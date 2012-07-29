@@ -168,7 +168,6 @@ var querystring = __meteor_bootstrap__.require("querystring");
 
     var authString = this._getAuthHeaderString(headers);
 
-    // XXX Modularize this, most of its in two places
     var response = Meteor.http.post(this.config._urls.requestToken, {
       headers: {
         Authorization: authString
@@ -192,7 +191,6 @@ var querystring = __meteor_bootstrap__.require("querystring");
 
     var authString = this._getAuthHeaderString(headers);
 
-    // XXX Modularize this, most of its in two places
     var response = Meteor.http.post(this.config._urls.accessToken, {
       headers: {
         Authorization: authString
