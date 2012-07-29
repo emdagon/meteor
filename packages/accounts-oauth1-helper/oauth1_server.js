@@ -89,19 +89,19 @@ var querystring = __meteor_bootstrap__.require("querystring");
 
       // Get or create user id
       var oauthResult = service.handleOauthRequest(oauth);
-
+      
       if (oauthResult) { // could be null if user declined permissions
         var userId = Meteor.accounts.updateOrCreateUser(oauthResult.options, oauthResult.extra);
-
+      
         // Generate and store a login token for reconnect
         // XXX this could go in accounts_server.js instead
         var loginToken = Meteor.accounts._loginTokens.insert({userId: userId});
-
+      
         // Store results to subsequent call to `login`
         Meteor.accounts.oauth1._loginResultForState[req.query.state] =
           {token: loginToken, id: userId};
       }
-
+      
       // We support ?close and ?redirect=URL. Any other query should
       // just serve a blank page
       if ('close' in req.query) { // check with 'in' because we don't set a value
@@ -155,7 +155,7 @@ var querystring = __meteor_bootstrap__.require("querystring");
         Authorization: authString
       }
     });
-
+    
     if (response.error)
       throw response.error;
 
