@@ -74,50 +74,49 @@ var querystring = __meteor_bootstrap__.require("querystring");
     var oauth = new OAuth(urls);
 
     if (req.query.callbackUrl) {
-      return oauth.getRequestToken(req.query.callbackUrl, function(err, requestToken) {
-        if (!err) {
-          var redirectUrl = urls.authenticate + '?oauth_token=' + requestToken.oauth_token;
-          res.writeHead(302, {'Location': redirectUrl});
-          res.end();
-        } else {
-          res.writeHead(200, {'Content-Type': 'text/html'});
-          res.end('', 'utf-8');
-        }
-      });
-    } else {
-      return oauth.getAccessToken(req.query.oauth_token, function(err, accessToken) {
 
-        // // Get or create user id
-        var oauthResult = service.handleOauthRequest(oauth);
-        
-        if (oauthResult) { // could be null if user declined permissions
-          var userId = Meteor.accounts.updateOrCreateUser(oauthResult.options, oauthResult.extra);
-        
-          // Generate and store a login token for reconnect
-          // XXX this could go in accounts_server.js instead
-          var loginToken = Meteor.accounts._loginTokens.insert({userId: userId});
-        
-          // Store results to subsequent call to `login`
-          Meteor.accounts.oauth1._loginResultForState[req.query.state] =
-            {token: loginToken, id: userId};
-        }
-        
-        // We support ?close and ?redirect=URL. Any other query should
-        // just serve a blank page
-        if ('close' in req.query) { // check with 'in' because we don't set a value
-          // Close the popup window
-          res.writeHead(200, {'Content-Type': 'text/html'});
-          var content =
-                '<html><head><script>window.close()</script></head></html>';
-          res.end(content, 'utf-8');
-        } else if (req.query.redirect) {
-          res.writeHead(302, {'Location': req.query.redirect});
-          res.end();
-        } else {
-          res.writeHead(200, {'Content-Type': 'text/html'});
-          res.end('', 'utf-8');
-        }
-      });
+      // Get a request token to start auth process
+      oauth.getRequestToken(req.query.callbackUrl);
+
+      var redirectUrl = urls.authenticate + '?oauth_token=' + oauth.requestToken;
+      res.writeHead(302, {'Location': redirectUrl});
+      res.end();
+
+    } else {
+
+      // Get the oauth token for signing requests
+      oauth.getAccessToken(req.query.oauth_token);
+
+      // Get or create user id
+      var oauthResult = service.handleOauthRequest(oauth);
+
+      if (oauthResult) { // could be null if user declined permissions
+        var userId = Meteor.accounts.updateOrCreateUser(oauthResult.options, oauthResult.extra);
+
+        // Generate and store a login token for reconnect
+        // XXX this could go in accounts_server.js instead
+        var loginToken = Meteor.accounts._loginTokens.insert({userId: userId});
+
+        // Store results to subsequent call to `login`
+        Meteor.accounts.oauth1._loginResultForState[req.query.state] =
+          {token: loginToken, id: userId};
+      }
+
+      // We support ?close and ?redirect=URL. Any other query should
+      // just serve a blank page
+      if ('close' in req.query) { // check with 'in' because we don't set a value
+        // Close the popup window
+        res.writeHead(200, {'Content-Type': 'text/html'});
+        var content =
+              '<html><head><script>window.close()</script></head></html>';
+        res.end(content, 'utf-8');
+      } else if (req.query.redirect) {
+        res.writeHead(302, {'Location': req.query.redirect});
+        res.end();
+      } else {
+        res.writeHead(200, {'Content-Type': 'text/html'});
+        res.end('', 'utf-8');
+      }
     }
   };
 
@@ -137,7 +136,7 @@ var querystring = __meteor_bootstrap__.require("querystring");
     this.urls = urls;
   };
 
-  OAuth.prototype.getRequestToken = function(callbackUrl, fn) {
+  OAuth.prototype.getRequestToken = function(callbackUrl) {
 
     var authHeader = this._buildHeader({
       oauth_callback: callbackUrl
@@ -151,26 +150,20 @@ var querystring = __meteor_bootstrap__.require("querystring");
     }).sort().join(', ');
 
     // XXX Modularize this, most of its in two places
-    // XXX Use sync interface
-    Meteor.http.post(this.urls.requestToken, {
+    var response = Meteor.http.post(this.urls.requestToken, {
       headers: {
-        // XXX can we remove this line?
-        'Content-Type': 'application/x-www-form-urlencoded',
         Authorization: authString
       }
-    }, function(err, response) {
-
-      if (err) {
-        fn(err, response);
-      } else {
-        var token = querystring.parse(response.content);
-        fn(null, token);
-      }
     });
+
+    if (response.error)
+      throw response.error;
+
+    var tokens = querystring.parse(response.content);
+    this.requestToken = tokens.oauth_token;
   };
 
-  OAuth.prototype.getAccessToken = function(oauthToken, fn) {
-    var self = this;
+  OAuth.prototype.getAccessToken = function(oauthToken) {
 
     // XXX too much in common with getRequestToken
     var authHeader = this._buildHeader({
@@ -184,22 +177,17 @@ var querystring = __meteor_bootstrap__.require("querystring");
     }).join(', ');
 
     // XXX Modularize this, most of its in two places
-    // XXX Use sync interface
-    Meteor.http.post(this.urls.accessToken, {
+    var response = Meteor.http.post(this.urls.accessToken, {
       headers: {
-        // XXX can we remove this line?
-        'Content-Type': 'application/x-www-form-urlencoded',
         Authorization: authString
       }
-    }, function(err, response) {
-      if (err) {
-        fn(err);
-      } else {
-        // XXX Don't call this token
-        self.token = querystring.parse(response.content);
-        fn(null, self.token);
-      }
     });
+
+    if (response.error)
+      throw response.error;
+
+    // XXX Don't call this token
+    this.token = querystring.parse(response.content);
   };
 
   OAuth.prototype.call = function(method, url) {
@@ -221,15 +209,16 @@ var querystring = __meteor_bootstrap__.require("querystring");
       return encodeURIComponent(key) + '="' + encodeURIComponent(val) + '"'; 
     }).sort().join(', ');
 
-    var result = Meteor.http[method.toLowerCase()](url, {
+    var response = Meteor.http[method.toLowerCase()](url, {
       headers: {
         Authorization: authString
       }
     });
 
-    if (result.error)
-      throw result.error;
-    return result.data;
+    if (response.error)
+      throw response.error;
+
+    return response.data;
   };
 
   OAuth.prototype.get = function(url) {
