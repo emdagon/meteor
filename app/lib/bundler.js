@@ -433,8 +433,12 @@ _.extend(Bundle.prototype, {
 
   _generate_app_html: function () {
     var self = this;
+    
+    var app_html_path = path.join(process.cwd(), "app.html.in");
+    if (!fs.existsSync(app_html_path))
+      app_html_path = path.join(__dirname, "app.html.in");
 
-    var template = fs.readFileSync(path.join(__dirname, "app.html.in"));
+    var template = fs.readFileSync(app_html_path);
     var f = require('handlebars').compile(template.toString());
     return f({
       scripts: self.js.client,
